@@ -2,11 +2,19 @@ export const CREATE_WORKSPACES_TABLE = `
   CREATE TABLE IF NOT EXISTS workspaces (
     id TEXT PRIMARY KEY,
     name TEXT NOT NULL,
-    slug TEXT NOT NULL UNIQUE,
     description TEXT,
-    owner_id TEXT NOT NULL,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+    ownerId TEXT NOT NULL,
+    createdAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+  )
+`;
+
+export const CREATE_WORKSPACE_MEMBERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS workspace_members (
+    workspaceId TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    joinedAt TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (workspaceId, userId)
   )
 `;
 
@@ -17,7 +25,7 @@ export const CREATE_USERS_TABLE = `
     name TEXT NOT NULL,
     avatar_url TEXT,
     role TEXT NOT NULL DEFAULT 'member',
-    workspace_id TEXT NOT NULL,
+    workspace_id TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE
