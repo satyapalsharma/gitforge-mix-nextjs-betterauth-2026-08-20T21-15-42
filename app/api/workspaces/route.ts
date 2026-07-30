@@ -3,6 +3,52 @@ import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
 import { headers } from "next/headers";
 
+export async function GET(request: Request) {
+  try {
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
+
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const db = getDb();
+    const workspaces = db
+      .prepare(
+        `SELECT w.id, w.name, w.description, w.ownerId, w.createdAt
+         FROM workspaces w
+         INNER JOIN workspace_members wm ON w.id = wm.workspaceId
+         WHERE wm.userId = ?
+         ORDER BY w.createdAt DESC`
+      )
+      .all(session.user.id) as Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      ownerId: string;
+      createdAt: string;
+    }>;
+
+    return NextResponse.json(
+      workspaces.map((w) => ({
+        id: w.id,
+        name: w.name,
+        description: w.description ?? undefined,
+        ownerId: w.ownerId,
+        createdAt: new Date(w.createdAt).toISOString(),
+      })),
+      { status: 200 }
+    );
+  } catch (error) {
+    console.error("Unexpected error in GET /api/workspaces:", error);
+    return NextResponse.json(
+      { error: "Internal server error." },
+      { status: 500 }
+    );
+  }
+}
+
 export async function POST(request: Request) {
   try {
     const session = await auth.api.getSession({
@@ -18,14 +64,11 @@ export async function POST(request: Request) {
     if (
       !body ||
       typeof body.name !== "string" ||
-      typeof body.description !== "string" ||
-      (body.description !== undefined && body.description !== null)
+      (body.description !== undefined &&
+        body.description !== null &&
+        typeof body.description !== "string")
     ) {
-      // Allow description to be string or undefined/null
-      if (
-        !body ||
-        typeof body.name !== "string"
-      ) {
+      if (!body || typeof body.name !== "string") {
         return NextResponse.json(
           { error: "Invalid request body. Expected { name: string, description?: string }" },
           { status: 400 }
