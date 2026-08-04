@@ -28,7 +28,12 @@ export async function GET(
     }
 
     const tasks = db
-      .prepare("SELECT * FROM tasks WHERE workspaceId = ? ORDER BY createdAt DESC")
+      .prepare(
+        `SELECT t.* FROM tasks t
+         INNER JOIN projects p ON t.project_id = p.id
+         WHERE p.workspace_id = ?
+         ORDER BY t.created_at DESC`
+      )
       .all(workspaceId) as any[];
 
     return NextResponse.json(tasks);
