@@ -1,182 +1,97 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useParams } from "next/navigation";
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { authClient } from "@/lib/auth-client";
 
-interface Workspace {
-  id: string;
-  name: string;
-  description: string;
-  ownerId: string;
-  createdAt: string;
-  updatedAt: string;
+interface WorkspaceSettingsPageProps {
+  params: {
+    id: string;
+  };
 }
 
-export default function WorkspaceSettingsPage() {
-  const params = useParams();
-  const workspaceId = params.id as string;
+export default function WorkspaceSettingsPage({ params }: WorkspaceSettingsPageProps) {
+  const router = useRouter();
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [workspaceName, setWorkspaceName] = useState("");
 
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<string | null>(null);
-
-  useEffect(() => {
-    async function fetchWorkspace() {
-      try {
-        const response = await fetch(`/api/workspaces/${workspaceId}`);
-        if (!response.ok) {
-          if (response.status === 404) {
-            setError("Workspace not found");
-          } else if (response.status === 401) {
-            setError("You must be logged in to view this page");
-          } else {
-            setError("Failed to load workspace");
-          }
-          return;
-        }
-        const data = (await response.json()) as Workspace;
-        setWorkspace(data);
-        setName(data.name);
-        setDescription(data.description);
-      } catch (err) {
-        setError("An unexpected error occurred");
-      } finally {
-        setLoading(false);
-      }
-    }
-
-    fetchWorkspace();
-  }, [workspaceId]);
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setError(null);
-    setSuccess(null);
-
+  const handleDelete = async () => {
+    setIsDeleting(true);
     try {
-      const response = await fetch(`/api/workspaces/${workspaceId}`, {
-        method: "PATCH",
+      const response = await fetch(`/api/workspaces/${params.id}`, {
+        method: "DELETE",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ name, description }),
       });
 
       if (!response.ok) {
-        const data = await response.json();
-        throw new Error(data.error || "Failed to update workspace");
+        const error = await response.json();
+        throw new Error(error.message || "Failed to delete workspace");
       }
 
-      const updated = (await response.json()) as Workspace;
-      setWorkspace(updated);
-      setSuccess("Workspace updated");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred");
-    } finally {
-      setSaving(false);
+      router.push("/workspaces");
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "An error occurred");
+      setIsDeleting(false);
     }
-  }
-
-  if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-gray-600">Loading...</div>
-      </div>
-    );
-  }
-
-  if (error && !workspace) {
-    return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <div className="text-red-600">{error}</div>
-      </div>
-    );
-  }
+  };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-12 px-4 sm:px-6 lg:px-8">
-      <div className="max-w-2xl mx-auto">
-        <div className="bg-white shadow rounded-lg">
-          <div className="px-6 py-8">
-            <h1 className="text-2xl font-bold text-gray-900 mb-2">
-              Workspace Settings
-            </h1>
-            <p className="text-gray-600 mb-8">
-              Update your workspace details below.
+    <div className="max-w-2xl mx-auto py-8">
+      <h1 className="text-2xl font-bold mb-6">Workspace Settings</h1>
+
+      {/* Existing settings content would go here */}
+      <div className="bg-white shadow rounded-lg p-6 mb-6">
+        <h2 className="text-lg font-semibold mb-4">General</h2>
+        {/* Settings form fields */}
+      </div>
+
+      {/* Delete Workspace Section */}
+      <div className="bg-white shadow rounded-lg p-6 border-t-4 border-red-500">
+        <h2 className="text-lg font-semibold text-red-600 mb-2">Danger Zone</h2>
+        <p className="text-gray-600 mb-4">
+          Once you delete a workspace, there is no going back. Please be certain.
+        </p>
+        <button
+          onClick={() => setShowDeleteModal(true)}
+          className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+        >
+          Delete Workspace
+        </button>
+      </div>
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded p-6 max-w-md w-full">
+            <h3 className="text-xl font-bold mb-4">Delete Workspace</h3>
+            <p className="text-gray-700 mb-2">
+              Are you sure you want to delete <span className="font-semibold">{workspaceName || "this workspace"}</span>?
             </p>
-
-            {error && (
-              <div className="mb-6 rounded-md bg-red-50 p-4">
-                <p className="text-sm text-red-800">{error}</p>
-              </div>
-            )}
-
-            {success && (
-              <div className="mb-6 rounded-md bg-green-50 p-4">
-                <p className="text-sm text-green-800">{success}</p>
-              </div>
-            )}
-
-            <form onSubmit={handleSubmit} className="space-y-6">
-              <div>
-                <label
-                  htmlFor="name"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Workspace Name
-                </label>
-                <input
-                  type="text"
-                  id="name"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                  maxLength={100}
-                  required
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  Max 100 characters
-                </p>
-              </div>
-
-              <div>
-                <label
-                  htmlFor="description"
-                  className="block text-sm font-medium text-gray-700"
-                >
-                  Description
-                </label>
-                <textarea
-                  id="description"
-                  value={description}
-                  onChange={(e) => setDescription(e.target.value)}
-                  maxLength={500}
-                  rows={4}
-                  className="mt-1 block w-full rounded-md border border-gray-300 px-3 py-2 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
-                />
-                <p className="mt-1 text-sm text-gray-500">
-                  Max 500 characters
-                </p>
-              </div>
-
-              <div className="flex items-center justify-end">
-                <button
-                  type="submit"
-                  disabled={saving}
-                  className="rounded-md bg-blue-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            </form>
+            <p className="text-gray-600 mb-6">
+              This will permanently delete the workspace and all its tasks. This action cannot be undone.
+            </p>
+            <div className="flex justify-end gap-3">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="px-4 py-2 border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleDelete}
+                disabled={isDeleting}
+                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600 disabled:opacity-50"
+              >
+                {isDeleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }
