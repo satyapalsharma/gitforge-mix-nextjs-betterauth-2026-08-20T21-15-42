@@ -1,97 +1,45 @@
 import { NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
 import { getDb } from "@/lib/db";
-import { WorkspaceService } from "@/lib/services/workspace";
+import { requireAuth } from "@/lib/auth";
 
-export async function GET(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const db = getDb();
-  const workspace = db
-    .prepare(
-      `SELECT * FROM workspaces WHERE id = ? AND (owner_id = ? OR id IN (SELECT workspace_id FROM team_members WHERE user_id = ?))`
-    )
-    .get(params.id, session.user.id, session.user.id) as any;
-
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-  }
-
-  return NextResponse.json(workspace);
+interface RouteContext {
+  params: Promise<{ id: string }>;
 }
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
+export async function GET(context: RouteContext) {
+  try {
+    const { session } = await requireAuth();
+    const { id: workspaceId } = await context.params;
+    const db = getDb();
 
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const workspace = db.prepare("SELECT * FROM workspaces WHERE id = ?").get(workspaceId) as any;
+
+    if (!workspace) {
+      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    }
+
+    // Verify user is a member
+    const membership = db
+      .prepare("SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
+      .get(workspaceId, session.user.id) as { id: string } | undefined;
+
+    if (!membership) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    const formattedWorkspace = {
+      id: workspace.id,
+      name: workspace.name,
+      slug: workspace.slug,
+      description: workspace.description,
+      ownerId: workspace.owner_id,
+      createdAt: workspace.created_at,
+      updatedAt: workspace.updated_at,
+    };
+
+    return NextResponse.json(formattedWorkspace);
+  } catch (error) {
+    console.error("Error fetching workspace:", error);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
-
-  const db = getDb();
-  const workspace = db
-    .prepare("SELECT * FROM workspaces WHERE id = ? AND owner_id = ?")
-    .get(params.id, session.user.id) as any;
-
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-  }
-
-  const body = await request.json();
-  const updateStmt = db.prepare(
-    `UPDATE workspaces SET name = ?, description = ?, updated_at = ? WHERE id = ?`
-  );
-
-  const updated = updateStmt.run(
-    body.name ?? workspace.name,
-    body.description ?? workspace.description,
-    new Date().toISOString(),
-    params.id
-  );
-
-  const updatedWorkspace = db
-    .prepare("SELECT * FROM workspaces WHERE id = ?")
-    .get(params.id) as any;
-
-  return NextResponse.json(updatedWorkspace);
-}
-
-export async function DELETE(
-  request: Request,
-  { params }: { params: { id: string } }
-) {
-  const session = await auth.api.getSession({
-    headers: request.headers,
-  });
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const db = getDb();
-  const workspace = db
-    .prepare("SELECT * FROM workspaces WHERE id = ? AND owner_id = ?")
-    .get(params.id, session.user.id) as any;
-
-  if (!workspace) {
-    return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-  }
-
-  const deleteStmt = db.prepare("DELETE FROM workspaces WHERE id = ?");
-  deleteStmt.run(params.id);
-
-  return NextResponse.json({ success: true });
 }

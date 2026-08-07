@@ -1,6 +1,11 @@
 export interface Session {
   id: string;
   userId: string;
+  user: {
+    id: string;
+    email: string;
+    name: string;
+  };
   expiresAt: Date;
   createdAt: Date;
 }

@@ -87,22 +87,30 @@ export const CREATE_PROJECTS_TABLE = `
   )
 `;
 
+export const CREATE_WORKSPACE_MEMBERS_TABLE = `
+  CREATE TABLE IF NOT EXISTS workspace_members (
+    id TEXT PRIMARY KEY,
+    workspaceId TEXT NOT NULL,
+    userId TEXT NOT NULL,
+    role TEXT NOT NULL DEFAULT 'member',
+    joinedAt TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (workspaceId) REFERENCES workspaces(id) ON DELETE CASCADE,
+    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(workspaceId, userId)
+  )
+`;
+
 export const CREATE_TASKS_TABLE = `
   CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
+    workspaceId TEXT NOT NULL,
     title TEXT NOT NULL,
     description TEXT,
+    dueDate TEXT,
     status TEXT NOT NULL DEFAULT 'todo',
-    priority TEXT NOT NULL DEFAULT 'medium',
-    project_id TEXT NOT NULL,
-    assignee_id TEXT,
-    reporter_id TEXT NOT NULL,
-    due_date TEXT,
-    tags TEXT NOT NULL DEFAULT '[]',
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE,
-    FOREIGN KEY (assignee_id) REFERENCES users(id),
-    FOREIGN KEY (reporter_id) REFERENCES users(id)
+    assigneeId TEXT,
+    createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (workspaceId) REFERENCES workspaces(id) ON DELETE CASCADE,
+    FOREIGN KEY (assigneeId) REFERENCES users(id)
   )
 `;

@@ -4,29 +4,21 @@ export type TaskPriority = "low" | "medium" | "high" | "urgent";
 
 export interface Task {
   id: string;
+  workspaceId: string;
   title: string;
   description?: string;
   status: TaskStatus;
-  priority: TaskPriority;
-  projectId: string;
+  priority?: TaskPriority;
   assigneeId?: string;
-  reporterId: string;
-  dueDate?: Date;
-  tags: string[];
-  createdAt: Date;
-  updatedAt: Date;
+  dueDate?: string;
+  createdAt: string;
 }
 
 export interface CreateTaskInput {
   title: string;
   description?: string;
-  status?: TaskStatus;
-  priority?: TaskPriority;
-  projectId: string;
+  dueDate?: string;
   assigneeId?: string;
-  reporterId: string;
-  dueDate?: Date;
-  tags?: string[];
 }
 
 export interface UpdateTaskInput {
@@ -35,6 +27,5 @@ export interface UpdateTaskInput {
   status?: TaskStatus;
   priority?: TaskPriority;
   assigneeId?: string;
-  dueDate?: Date;
-  tags?: string[];
+  dueDate?: string;
 }

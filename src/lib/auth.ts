@@ -1,23 +1,15 @@
 import { betterAuth } from "better-auth";
-import { Database } from "better-sqlite3";
-import { getDb } from "./db";
+import { nextCookies } from "better-auth/next-js";
+import { loadConfig } from "./config";
 
 export const auth = betterAuth({
   database: {
-    db: getDb(),
+    db: {
+      get: () => import("./db").then((m) => m.getDb()),
+    },
     type: "sqlite",
   },
-  user: {
-    additionalFields: {
-      displayName: { type: "string", required: false },
-      bio: { type: "string", required: false },
-      avatarUrl: { type: "string", required: false },
-    },
-  },
-  emailAndPassword: {
-    enabled: true,
-  },
+  secret: loadConfig().authSecret,
+  baseURL: loadConfig().authUrl,
+  plugins: [nextCookies()],
 });
-
-export type Session = typeof auth.$Infer.Session;
-export type User = typeof auth.$Infer.User;
