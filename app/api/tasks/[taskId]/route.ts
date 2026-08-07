@@ -1,57 +1,123 @@
-import { NextResponse } from "next/server";
-import { getDb } from "@/src/lib/db";
-import { TASK_STATUSES } from "@/src/lib/constants";
-import { auth } from "@/src/lib/auth";
+import { NextRequest, NextResponse } from "next/server";
+import { getDb } from "@/lib/db";
+import { auth } from "@/lib/auth/config";
+import { verifyWorkspaceMembership } from "@/lib/auth/workspace";
+import type { UpdateTaskInput } from "@/types/task";
 
-export async function PATCH(
-  request: Request,
-  { params }: { params: { taskId: string } }
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ taskId: string }> }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
+    const session = await auth.api.getSession({ headers: await headers() });
     if (!session) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const taskId = params.taskId;
+    const { taskId } = await params;
     const db = getDb();
-
     const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as any;
 
     if (!task) {
       return NextResponse.json({ error: "Task not found" }, { status: 404 });
     }
 
-    const member = db
-      .prepare("SELECT 1 FROM workspace_members WHERE workspaceId = ? AND userId = ?")
-      .get(task.workspaceId, session.user.id) as any;
+    // Verify workspace membership
+    await verifyWorkspaceMembership(session.user.id, task.workspaceId);
 
-    if (!member) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    return NextResponse.json(task);
+  } catch (error) {
+    console.error("GET /api/tasks/[taskId] error:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(
+  request: NextRequest,
+  { params }: { params: Promise<{ taskId: string }> }
+) {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const body = await request.json();
-    const { status } = body as { status: string };
+    const { taskId } = await params;
+    const db = getDb();
+    const existingTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as any;
 
-    if (!status || !TASK_STATUSES.includes(status as any)) {
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // Verify workspace membership
+    await verifyWorkspaceMembership(session.user.id, existingTask.workspaceId);
+
+    const body = await request.json();
+    const { title, description, dueDate, assigneeId, status } = body as UpdateTaskInput;
+
+    if (!title || !status) {
       return NextResponse.json(
-        { error: `Invalid status. Must be one of: ${TASK_STATUSES.join(", ")}` },
+        { error: "Title and status are required" },
         { status: 400 }
       );
     }
 
-    db.prepare("UPDATE tasks SET status = ? WHERE id = ?").run(status, taskId);
+    // If assignee is provided, verify they are in the workspace
+    if (assigneeId) {
+      await verifyAssigneeInWorkspace(assigneeId, existingTask.workspaceId);
+    }
 
     const updatedTask = db
-      .prepare("SELECT * FROM tasks WHERE id = ?")
-      .get(taskId) as any;
+      .prepare(
+        `UPDATE tasks SET title = ?, description = ?, dueDate = ?, assigneeId = ?, status = ?, updatedAt = ? WHERE id = ?`
+      )
+      .run(title, description || null, dueDate || null, assigneeId || null, status, new Date().toISOString(), taskId);
 
-    return NextResponse.json(updatedTask);
+    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
+
+    return NextResponse.json(task);
   } catch (error) {
-    console.error("Failed to update task status:", error);
+    console.error("PUT /api/tasks/[taskId] error:", error);
+    if (error instanceof Error) {
+      return NextResponse.json({ error: error.message }, { status: 400 });
+    }
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ taskId: string }> }
+) {
+  try {
+    const session = await auth.api.getSession({ headers: await headers() });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { taskId } = await params;
+    const db = getDb();
+    const existingTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as any;
+
+    if (!existingTask) {
+      return NextResponse.json({ error: "Task not found" }, { status: 404 });
+    }
+
+    // Verify workspace membership
+    await verifyWorkspaceMembership(session.user.id, existingTask.workspaceId);
+
+    db.prepare("DELETE FROM tasks WHERE id = ?").run(taskId);
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error("DELETE /api/tasks/[taskId] error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
       { status: 500 }
