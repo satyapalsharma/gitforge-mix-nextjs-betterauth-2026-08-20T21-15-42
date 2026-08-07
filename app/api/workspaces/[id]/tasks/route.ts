@@ -1,153 +1,65 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
-import type { CreateTaskInput } from "@/types";
+import { headers } from "next/headers";
+import { getDb } from "@/src/lib/db";
+import { auth } from "@/src/lib/auth";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
+function mapTaskRow(row: any): any {
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description,
+    status: row.status,
+    priority: row.priority,
+    projectId: row.project_id,
+    assigneeId: row.assignee_id,
+    reporterId: row.reporter_id,
+    dueDate: row.due_date,
+    tags: JSON.parse(row.tags || "[]"),
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  };
 }
 
-export async function GET(context: RouteContext) {
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { session } = await requireAuth();
-    const { id: workspaceId } = await context.params;
-    const db = getDb();
+    const session = await auth.api.getSession({
+      headers: await headers(),
+    });
 
-    // Verify workspace exists
-    const workspace = db.prepare("SELECT id FROM workspaces WHERE id = ?").get(workspaceId) as
-      | { id: string }
-      | undefined;
-
-    if (!workspace) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+    if (!session) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    // Verify user is a member of the workspace
-    const membership = db
-      .prepare("SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-      .get(workspaceId, session.user.id) as { id: string } | undefined;
+    const workspaceId = params.id;
+    const db = getDb();
 
-    if (!membership) {
+    const member = db
+      .prepare("SELECT 1 FROM workspace_members WHERE workspaceId = ? AND userId = ?")
+      .get(workspaceId, session.user.id) as any;
+
+    if (!member) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const tasks = db
+    const rows = db
       .prepare(
-        `
-        SELECT t.*, u.name as assignee_name, u.email as assignee_email
-        FROM tasks t
-        LEFT JOIN users u ON t.assignee_id = u.id
-        WHERE t.workspace_id = ?
-        ORDER BY t.created_at DESC
-      `,
+        `SELECT t.* FROM tasks t
+         INNER JOIN projects p ON t.project_id = p.id
+         WHERE p.workspace_id = ?
+         ORDER BY t.created_at DESC`
       )
       .all(workspaceId) as any[];
 
-    const formattedTasks = tasks.map((task) => ({
-      id: task.id,
-      workspaceId: task.workspace_id,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      dueDate: task.due_date,
-      assigneeId: task.assignee_id,
-      assigneeName: task.assignee_name,
-      assigneeEmail: task.assignee_email,
-      createdAt: task.created_at,
-      updatedAt: task.updated_at,
-    }));
-
-    return NextResponse.json(formattedTasks);
+    const tasks = rows.map(mapTaskRow);
+    return NextResponse.json(tasks);
   } catch (error) {
-    console.error("Error fetching tasks:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
-
-export async function POST(context: RouteContext) {
-  try {
-    const { session } = await requireAuth();
-    const { id: workspaceId } = await context.params;
-    const body = (await context.request.json()) as CreateTaskInput;
-    const db = getDb();
-
-    // Validate required fields
-    if (!body.title || body.title.trim() === "") {
-      return NextResponse.json({ error: "Title is required" }, { status: 400 });
-    }
-
-    // Verify workspace exists
-    const workspace = db.prepare("SELECT id FROM workspaces WHERE id = ?").get(workspaceId) as
-      | { id: string }
-      | undefined;
-
-    if (!workspace) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
-    }
-
-    // Verify user is a member of the workspace
-    const membership = db
-      .prepare("SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-      .get(workspaceId, session.user.id) as { id: string } | undefined;
-
-    if (!membership) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    // Verify assignee is a member of the workspace (if provided)
-    if (body.assigneeId) {
-      const assigneeMembership = db
-        .prepare("SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-        .get(workspaceId, body.assigneeId) as { id: string } | undefined;
-
-      if (!assigneeMembership) {
-        return NextResponse.json(
-          { error: "Assignee is not a member of this workspace" },
-          { status: 400 },
-        );
-      }
-    }
-
-    const taskId = crypto.randomUUID();
-    const now = new Date().toISOString();
-
-    db.prepare(
-      `
-      INSERT INTO tasks (id, workspace_id, title, description, status, priority, due_date, assignee_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `,
-    ).run(
-      taskId,
-      workspaceId,
-      body.title.trim(),
-      body.description?.trim() || null,
-      "todo",
-      "medium",
-      body.dueDate || null,
-      body.assigneeId || null,
-      now,
-      now,
+    console.error("Failed to fetch workspace tasks:", error);
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 }
     );
-
-    const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as any;
-
-    const formattedTask = {
-      id: task.id,
-      workspaceId: task.workspace_id,
-      title: task.title,
-      description: task.description,
-      status: task.status,
-      priority: task.priority,
-      dueDate: task.due_date,
-      assigneeId: task.assignee_id,
-      createdAt: task.created_at,
-      updatedAt: task.updated_at,
-    };
-
-    return NextResponse.json(formattedTask, { status: 201 });
-  } catch (error) {
-    console.error("Error creating task:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

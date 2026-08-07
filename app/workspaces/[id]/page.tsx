@@ -1,267 +1,260 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import type { Workspace, Task, User } from "@/types";
+import { useEffect, useState, useCallback } from "react";
 
-interface WorkspaceDetailProps {
-  params: Promise<{ id: string }>;
+type TaskStatus = "todo" | "in_progress" | "review" | "done" | "blocked";
+
+interface Task {
+  id: string;
+  title: string;
+  description?: string;
+  status: TaskStatus;
+  priority: string;
+  projectId: string;
+  assigneeId?: string;
+  reporterId: string;
+  dueDate?: string;
+  tags: string[];
+  createdAt: string;
+  updatedAt: string;
 }
 
-export default function WorkspaceDetailPage({ params }: WorkspaceDetailProps) {
-  const [workspaceId, setWorkspaceId] = useState<string | null>(null);
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
+const STATUS_CONFIG: Record<
+  TaskStatus,
+  { label: string; activeBg: string; activeText: string; inactiveBg: string; badgeBg: string; badgeText: string }
+> = {
+  todo: {
+    label: "Todo",
+    activeBg: "bg-gray-500",
+    activeText: "text-white",
+    inactiveBg: "bg-gray-200",
+    badgeBg: "bg-gray-100",
+    badgeText: "text-gray-700",
+  },
+  in_progress: {
+    label: "In Progress",
+    activeBg: "bg-blue-500",
+    activeText: "text-white",
+    inactiveBg: "bg-gray-200",
+    badgeBg: "bg-blue-100",
+    badgeText: "text-blue-700",
+  },
+  review: {
+    label: "Review",
+    activeBg: "bg-yellow-500",
+    activeText: "text-white",
+    inactiveBg: "bg-gray-200",
+    badgeBg: "bg-yellow-100",
+    badgeText: "text-yellow-700",
+  },
+  done: {
+    label: "Done",
+    activeBg: "bg-green-500",
+    activeText: "text-white",
+    inactiveBg: "bg-gray-200",
+    badgeBg: "bg-green-100",
+    badgeText: "text-green-700",
+  },
+  blocked: {
+    label: "Blocked",
+    activeBg: "bg-red-500",
+    activeText: "text-white",
+    inactiveBg: "bg-gray-200",
+    badgeBg: "bg-red-100",
+    badgeText: "text-red-700",
+  },
+};
+
+const TOGGLE_STATUSES: TaskStatus[] = ["todo", "in_progress", "done"];
+
+export default function WorkspaceDetailPage({ params }: { params: { id: string } }) {
+  const workspaceId = params.id;
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [members, setMembers] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showForm, setShowForm] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [dueDate, setDueDate] = useState("");
-  const [assigneeId, setAssigneeId] = useState("");
-
-  useEffect(() => {
-    params.then((resolved) => {
-      setWorkspaceId(resolved.id);
-    });
-  }, [params]);
-
-  useEffect(() => {
-    if (!workspaceId) return;
-    let cancelled = false;
-
-    async function fetchData() {
-      setLoading(true);
-      setError(null);
-      try {
-        const [workspaceRes, tasksRes, membersRes] = await Promise.all([
-          fetch(`/api/workspaces/${workspaceId}`),
-          fetch(`/api/workspaces/${workspaceId}/tasks`),
-          fetch(`/api/workspaces/${workspaceId}/members`),
-        ]);
-
-        if (!workspaceRes.ok) {
-          throw new Error("Failed to fetch workspace");
-        }
-        if (!tasksRes.ok) {
-          throw new Error("Failed to fetch tasks");
-        }
-        if (!membersRes.ok) {
-          throw new Error("Failed to fetch members");
-        }
-
-        if (!cancelled) {
-          const workspaceData: Workspace = await workspaceRes.json();
-          const tasksData: Task[] = await tasksRes.json();
-          const membersData: User[] = await membersRes.json();
-          setWorkspace(workspaceData);
-          setTasks(tasksData);
-          setMembers(membersData);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "An error occurred");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+  const fetchTasks = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`/api/workspaces/${workspaceId}/tasks`);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || `Failed to fetch tasks (${res.status})`);
       }
+      const data = (await res.json()) as Task[];
+      setTasks(data);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Unknown error");
+    } finally {
+      setLoading(false);
     }
-
-    fetchData();
-
-    return () => {
-      cancelled = true;
-    };
   }, [workspaceId]);
 
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!workspaceId || !title.trim()) return;
+  useEffect(() => {
+    fetchTasks();
+  }, [fetchTasks]);
 
-    setSubmitting(true);
-    setError(null);
+  const handleStatusToggle = async (taskId: string, newStatus: TaskStatus) => {
+    const previousTasks = tasks;
+    const taskIndex = tasks.findIndex((t) => t.id === taskId);
+    if (taskIndex === -1) return;
+
+    // Optimistic update
+    const updatedTasks = [...tasks];
+    updatedTasks[taskIndex] = { ...updatedTasks[taskIndex], status: newStatus };
+    setTasks(updatedTasks);
+    setUpdatingId(taskId);
 
     try {
-      const res = await fetch(`/api/workspaces/${workspaceId}/tasks`, {
-        method: "POST",
+      const res = await fetch(`/api/tasks/${taskId}`, {
+        method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          title: title.trim(),
-          description: description.trim() || undefined,
-          dueDate: dueDate || undefined,
-          assigneeId: assigneeId || undefined,
-        }),
+        body: JSON.stringify({ status: newStatus }),
       });
 
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to create task");
+        throw new Error(data.error || `Failed to update status (${res.status})`);
       }
 
-      // Reset form
-      setTitle("");
-      setDescription("");
-      setDueDate("");
-      setAssigneeId("");
-      setShowForm(false);
-
-      // Refetch tasks
-      const tasksRes = await fetch(`/api/workspaces/${workspaceId}/tasks`);
-      if (tasksRes.ok) {
-        const tasksData: Task[] = await tasksRes.json();
-        setTasks(tasksData);
-      }
+      // Refetch to ensure consistency
+      await fetchTasks();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An error occurred");
+      // Revert on error
+      setTasks(previousTasks);
+      setError(err instanceof Error ? err.message : "Failed to update status");
     } finally {
-      setSubmitting(false);
+      setUpdatingId(null);
     }
-  }
+  };
+
+  const formatDate = (dateStr?: string) => {
+    if (!dateStr) return null;
+    try {
+      const date = new Date(dateStr);
+      return date.toLocaleDateString(undefined, {
+        year: "numeric",
+        month: "short",
+        day: "numeric",
+      });
+    } catch {
+      return null;
+    }
+  };
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-gray-500">Loading workspace...</p>
+      <div className="flex items-center justify-center min-h-[400px]">
+        <p className="text-gray-500 text-lg">Loading tasks...</p>
       </div>
     );
   }
 
-  if (error || !workspace) {
+  if (error) {
     return (
-      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
-        <p className="text-red-500">{error || "Workspace not found"}</p>
+      <div className="flex flex-col items-center justify-center min-h-[400px] gap-4">
+        <p className="text-red-600 text-lg font-medium">Error: {error}</p>
+        <button
+          onClick={fetchTasks}
+          className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition"
+        >
+          Retry
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="max-w-4xl mx-auto py-8 px-4">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-3xl font-bold text-gray-900">{workspace.name}</h1>
-            {workspace.description && (
-              <p className="text-gray-600 mt-1">{workspace.description}</p>
-            )}
-          </div>
-          <button
-            onClick={() => setShowForm(!showForm)}
-            className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 transition-colors"
-          >
-            {showForm ? "Cancel" : "New Task"}
-          </button>
+    <div className="max-w-4xl mx-auto py-8">
+      <h1 className="text-3xl font-bold text-gray-900 mb-6">Workspace Tasks</h1>
+
+      {tasks.length === 0 ? (
+        <div className="text-center py-16">
+          <p className="text-gray-500 text-lg">No tasks found in this workspace.</p>
         </div>
-
-        {/* New Task Form */}
-        {showForm && (
-          <div className="bg-white rounded shadow p-4 mb-8">
-            <h2 className="text-xl font-semibold mb-4">Create New Task</h2>
-            <form onSubmit={handleSubmit}>
-              <input
-                type="text"
-                placeholder="Task title *"
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                className="w-full border rounded p-2 mb-4"
-                required
-              />
-              <textarea
-                placeholder="Description (optional)"
-                value={description}
-                onChange={(e) => setDescription(e.target.value)}
-                className="w-full border rounded p-2 mb-4"
-                rows={3}
-              />
-              <input
-                type="date"
-                placeholder="Due date (optional)"
-                value={dueDate}
-                onChange={(e) => setDueDate(e.target.value)}
-                className="w-full border rounded p-2 mb-4"
-              />
-              <select
-                value={assigneeId}
-                onChange={(e) => setAssigneeId(e.target.value)}
-                className="w-full border rounded p-2 mb-4"
-              >
-                <option value="">Unassigned</option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name || member.email}
-                  </option>
-                ))}
-              </select>
-              {error && <p className="text-red-500 text-sm mb-4">{error}</p>}
-              <button
-                type="submit"
-                disabled={submitting || !title.trim()}
-                className="bg-blue-500 text-white py-2 rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {submitting ? "Creating..." : "Create Task"}
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Task List */}
+      ) : (
         <div>
-          <h2 className="text-2xl font-semibold mb-4">Tasks</h2>
-          {tasks.length === 0 ? (
-            <div className="bg-white rounded shadow p-8 text-center">
-              <p className="text-gray-500">No tasks yet</p>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {tasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="bg-white rounded shadow p-4 flex items-start justify-between"
-                >
-                  <div>
-                    <h3 className="font-semibold text-gray-900">{task.title}</h3>
+          {tasks.map((task) => {
+            const statusConfig = STATUS_CONFIG[task.status];
+            const isUpdating = updatingId === task.id;
+
+            return (
+              <div
+                key={task.id}
+                className={`bg-white rounded-lg shadow p-4 mb-3 transition-opacity ${isUpdating ? "opacity-60" : "opacity-100"}`}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="text-lg font-semibold text-gray-900 truncate">{task.title}</h3>
                     {task.description && (
-                      <p className="text-gray-600 mt-1">{task.description}</p>
+                      <p className="text-gray-600 text-sm mt-1 line-clamp-2">{task.description}</p>
                     )}
-                    <div className="flex items-center gap-4 mt-2 text-sm text-gray-500">
+                    <div className="flex items-center gap-4 mt-3 text-sm text-gray-500">
                       {task.dueDate && (
-                        <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
-                      )}
-                      {task.assigneeId && (
-                        <span>
-                          Assigned to:{" "}
-                          {members.find((m) => m.id === task.assigneeId)?.name ||
-                            members.find((m) => m.id === task.assigneeId)?.email ||
-                            "Unknown"}
+                        <span className="flex items-center gap-1">
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"
+                            />
+                          </svg>
+                          {formatDate(task.dueDate)}
                         </span>
                       )}
+                      <span className="px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-700 capitalize">
+                        {task.priority}
+                      </span>
                     </div>
                   </div>
-                  <span
-                    className={`px-2 py-1 rounded text-xs font-medium ${
-                      task.status === "done"
-                        ? "bg-green-100 text-green-800"
-                        : task.status === "in_progress"
-                          ? "bg-blue-100 text-blue-800"
-                          : task.status === "blocked"
-                            ? "bg-red-100 text-red-800"
-                            : task.status === "review"
-                              ? "bg-yellow-100 text-yellow-800"
-                              : "bg-gray-100 text-gray-800"
-                    }`}
-                  >
-                    {task.status.replace("_", " ")}
-                  </span>
+
+                  <div className="flex-shrink-0">
+                    <span
+                      className={`inline-block px-2 py-1 rounded text-xs font-medium ${statusConfig.badgeBg} ${statusConfig.badgeText}`}
+                    >
+                      {statusConfig.label}
+                    </span>
+                  </div>
                 </div>
-              ))}
-            </div>
-          )}
+
+                <div className="mt-4 flex items-center gap-2">
+                  <span className="text-xs text-gray-500 mr-1">Status:</span>
+                  <div className="flex rounded-md overflow-hidden border border-gray-200">
+                    {TOGGLE_STATUSES.map((status) => {
+                      const cfg = STATUS_CONFIG[status];
+                      const isActive = task.status === status;
+
+                      return (
+                        <button
+                          key={status}
+                          onClick={() => handleStatusToggle(task.id, status)}
+                          disabled={isUpdating}
+                          className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                            isActive
+                              ? `${cfg.activeBg} ${cfg.activeText}`
+                              : `${cfg.inactiveBg} text-gray-700 hover:bg-gray-300`
+                          } ${isUpdating ? "cursor-not-allowed" : "cursor-pointer"}`}
+                          title={cfg.label}
+                        >
+                          {cfg.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
-      </div>
+      )}
     </div>
   );
 }
