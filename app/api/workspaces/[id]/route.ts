@@ -1,45 +1,55 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/lib/db";
-import { requireAuth } from "@/lib/auth";
+import { getDb } from "@/src/lib/db";
 
-interface RouteContext {
-  params: Promise<{ id: string }>;
-}
-
-export async function GET(context: RouteContext) {
+export async function GET(
+  _request: Request,
+  { params }: { params: { id: string } }
+) {
   try {
-    const { session } = await requireAuth();
-    const { id: workspaceId } = await context.params;
     const db = getDb();
+    const workspaceId = params.id;
 
-    const workspace = db.prepare("SELECT * FROM workspaces WHERE id = ?").get(workspaceId) as any;
+    const workspace = db
+      .prepare(
+        `SELECT id, name, slug, description, owner_id, created_at, updated_at
+         FROM workspaces
+         WHERE id = ?`
+      )
+      .get(workspaceId) as
+      | {
+        id: string;
+        name: string;
+        slug: string;
+        description: string | null;
+        owner_id: string;
+        created_at: string;
+        updated_at: string;
+      }
+      | undefined;
 
     if (!workspace) {
-      return NextResponse.json({ error: "Workspace not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Workspace not found" },
+        { status: 404 }
+      );
     }
 
-    // Verify user is a member
-    const membership = db
-      .prepare("SELECT id FROM workspace_members WHERE workspace_id = ? AND user_id = ?")
-      .get(workspaceId, session.user.id) as { id: string } | undefined;
-
-    if (!membership) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const formattedWorkspace = {
-      id: workspace.id,
-      name: workspace.name,
-      slug: workspace.slug,
-      description: workspace.description,
-      ownerId: workspace.owner_id,
-      createdAt: workspace.created_at,
-      updatedAt: workspace.updated_at,
-    };
-
-    return NextResponse.json(formattedWorkspace);
+    return NextResponse.json({
+      workspace: {
+        id: workspace.id,
+        name: workspace.name,
+        slug: workspace.slug,
+        description: workspace.description ?? undefined,
+        ownerId: workspace.owner_id,
+        createdAt: workspace.created_at,
+        updatedAt: workspace.updated_at,
+      },
+    });
   } catch (error) {
-    console.error("Error fetching workspace:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    console.error("Failed to fetch workspace:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch workspace" },
+      { status: 500 }
+    );
   }
 }
