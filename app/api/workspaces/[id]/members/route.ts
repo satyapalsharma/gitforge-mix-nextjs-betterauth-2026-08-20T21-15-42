@@ -1,5 +1,10 @@
 import { NextResponse } from "next/server";
-import { getDb } from "@/src/lib/db";
+import { getDb } from "@/src/lib/db/index";
+
+interface Member {
+  id: string;
+  name: string;
+}
 
 export async function GET(
   _request: Request,
@@ -9,24 +14,12 @@ export async function GET(
     const db = getDb();
     const workspaceId = params.id;
 
-    const members = db
-      .prepare(
-        `SELECT id, email, name, role, workspace_id, created_at, updated_at
-         FROM users
-         WHERE workspace_id = ?
-         ORDER BY created_at ASC`
-      )
-      .all(workspaceId) as Array<{
-      id: string;
-      email: string;
-      name: string;
-      role: string;
-      workspace_id: string;
-      created_at: string;
-      updated_at: string;
-    }>;
+    const stmt = db.prepare(
+      "SELECT id, name FROM users WHERE workspace_id = ? ORDER BY name ASC"
+    );
+    const members = stmt.all(workspaceId) as Member[];
 
-    return NextResponse.json({ members });
+    return NextResponse.json(members);
   } catch (error) {
     console.error("Failed to fetch workspace members:", error);
     return NextResponse.json(

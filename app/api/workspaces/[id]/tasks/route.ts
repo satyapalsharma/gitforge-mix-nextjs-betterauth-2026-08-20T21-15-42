@@ -1,64 +1,86 @@
 import { NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { getDb } from "@/src/lib/db";
-import { auth } from "@/src/lib/auth";
-
-function mapTaskRow(row: any): any {
-  return {
-    id: row.id,
-    title: row.title,
-    description: row.description,
-    status: row.status,
-    priority: row.priority,
-    projectId: row.project_id,
-    assigneeId: row.assignee_id,
-    reporterId: row.reporter_id,
-    dueDate: row.due_date,
-    tags: JSON.parse(row.tags || "[]"),
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
-}
+import { getDb } from "@/src/lib/db/index";
+import { Task, CreateTaskInput } from "@/src/types/task";
 
 export async function GET(
   _request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
-    const session = await auth.api.getSession({
-      headers: await headers(),
-    });
-
-    if (!session) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const workspaceId = params.id;
     const db = getDb();
+    const workspaceId = params.id;
 
-    const member = db
-      .prepare("SELECT 1 FROM workspace_members WHERE workspaceId = ? AND userId = ?")
-      .get(workspaceId, session.user.id) as any;
+    const stmt = db.prepare(
+      `SELECT id, title, description, status, priority, project_id as projectId,
+              assignee_id as assigneeId, reporter_id as reporterId,
+              due_date as dueDate, tags, created_at as createdAt,
+              updated_at as updatedAt
+       FROM tasks
+       WHERE project_id IN (
+         SELECT id FROM projects WHERE workspace_id = ?
+       )`
+    );
+    const tasks = stmt.all(workspaceId) as Task[];
 
-    if (!member) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const rows = db
-      .prepare(
-        `SELECT t.* FROM tasks t
-         INNER JOIN projects p ON t.project_id = p.id
-         WHERE p.workspace_id = ?
-         ORDER BY t.created_at DESC`
-      )
-      .all(workspaceId) as any[];
-
-    const tasks = rows.map(mapTaskRow);
     return NextResponse.json(tasks);
   } catch (error) {
-    console.error("Failed to fetch workspace tasks:", error);
+    console.error("Failed to fetch tasks:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to fetch tasks" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function POST(
+  request: Request,
+  { params }: { params: { id: string } }
+) {
+  try {
+    const body = (await request.json()) as CreateTaskInput;
+    const db = getDb();
+    const workspaceId = params.id;
+
+    const id = crypto.randomUUID();
+    const now = new Date().toISOString();
+
+    const stmt = db.prepare(
+      `INSERT INTO tasks (id, title, description, status, priority, project_id,
+                         assignee_id, reporter_id, due_date, tags,
+                         created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+
+    stmt.run(
+      id,
+      body.title,
+      body.description ?? null,
+      body.status ?? "todo",
+      body.priority ?? "medium",
+      body.projectId,
+      body.assigneeId ?? null,
+      body.reporterId,
+      body.dueDate ? new Date(body.dueDate).toISOString() : null,
+      JSON.stringify(body.tags ?? []),
+      now,
+      now
+    );
+
+    const created = db
+      .prepare(
+        `SELECT id, title, description, status, priority, project_id as projectId,
+                assignee_id as assigneeId, reporter_id as reporterId,
+                due_date as dueDate, tags, created_at as createdAt,
+                updated_at as updatedAt
+         FROM tasks WHERE id = ?`
+      )
+      .get(id) as Task;
+
+    return NextResponse.json(created, { status: 201 });
+  } catch (error) {
+    console.error("Failed to create task:", error);
+    return NextResponse.json(
+      { error: "Failed to create task" },
       { status: 500 }
     );
   }

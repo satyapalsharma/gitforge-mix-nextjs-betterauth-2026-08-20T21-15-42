@@ -1,168 +1,415 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useEffect } from "react";
+import { AssigneeSelect } from "@/components/assignee-select";
+import { Task, TaskStatus, TaskPriority } from "@/src/types/task";
 
-interface Member {
-  id: string;
-  email: string;
-  name: string;
-  role: string;
-}
-
-interface Workspace {
-  id: string;
-  name: string;
-}
-
-export default function WorkspaceDetailPage({
-  params,
-}: {
+interface WorkspacePageProps {
   params: { id: string };
-}) {
+}
+
+const TASK_STATUSES: { value: TaskStatus; label: string }[] = [
+  { value: "todo", label: "To Do" },
+  { value: "in_progress", label: "In Progress" },
+  { value: "review", label: "Review" },
+  { value: "done", label: "Done" },
+  { value: "blocked", label: "Blocked" },
+];
+
+const TASK_PRIORITIES: { value: TaskPriority; label: string }[] = [
+  { value: "low", label: "Low" },
+  { value: "medium", label: "Medium" },
+  { value: "high", label: "High" },
+  { value: "urgent", label: "Urgent" },
+];
+
+export default function WorkspacePage({ params }: WorkspacePageProps) {
   const workspaceId = params.id;
-  const [workspace, setWorkspace] = useState<Workspace | null>(null);
-  const [members, setMembers] = useState<Member[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loadingTasks, setLoadingTasks] = useState(true);
+  const [errorTasks, setErrorTasks] = useState<string | null>(null);
+
+  // Create form state
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
+  const [status, setStatus] = useState<TaskStatus>("todo");
+  const [priority, setPriority] = useState<TaskPriority>("medium");
+  const [assigneeId, setAssigneeId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
+
+  // Edit form state
+  const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState("");
+  const [editDescription, setEditDescription] = useState("");
+  const [editStatus, setEditStatus] = useState<TaskStatus>("todo");
+  const [editPriority, setEditPriority] = useState<TaskPriority>("medium");
+  const [editAssigneeId, setEditAssigneeId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   useEffect(() => {
-    let cancelled = false;
-
-    async function loadWorkspace() {
+    async function loadTasks() {
       try {
-        const res = await fetch(`/api/workspaces/${workspaceId}`);
-        if (!res.ok) throw new Error("Failed to fetch workspace");
-        const data = await res.json();
-        if (!cancelled) {
-          setWorkspace(data.workspace);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unknown error");
-        }
-      }
-    }
+        setLoadingTasks(true);
+        setErrorTasks(null);
+        const response = await fetch(
+          `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks`
+        );
 
-    async function loadMembers() {
-      try {
-        const res = await fetch(`/api/workspaces/${workspaceId}/members`);
-        if (!res.ok) throw new Error("Failed to fetch members");
-        const data = await res.json();
-        if (!cancelled) {
-          setMembers(data.members);
+        if (!response.ok) {
+          throw new Error(`HTTP ${response.status}`);
         }
+
+        const data = (await response.json()) as Task[];
+        setTasks(data);
       } catch (err) {
-        if (!cancelled) {
-          setError(err instanceof Error ? err.message : "Unknown error");
-        }
+        console.error("Failed to load tasks:", err);
+        setErrorTasks("Failed to load tasks");
       } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
+        setLoadingTasks(false);
       }
     }
 
-    loadWorkspace();
-    loadMembers();
-
-    return () => {
-      cancelled = true;
-    };
+    loadTasks();
   }, [workspaceId]);
 
-  function getInitials(name: string): string {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .slice(0, 2);
-  }
+  async function handleCreateTask(event: React.FormEvent) {
+    event.preventDefault();
+    setCreating(true);
+    setCreateError(null);
 
-  function getRoleBadgeClasses(role: string): string {
-    switch (role) {
-      case "owner":
-        return "bg-yellow-100 text-yellow-800";
-      case "admin":
-        return "bg-purple-100 text-purple-800";
-      default:
-        return "bg-gray-100 text-gray-800";
+    try {
+      const response = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title,
+            description,
+            status,
+            priority,
+            assigneeId,
+            reporterId: "current-user", // placeholder; replace with real user id
+            projectId: "default-project", // placeholder; replace with real project id
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${response.status}`);
+      }
+
+      const created = (await response.json()) as Task;
+      setTasks((prev) => [...prev, created]);
+
+      // Reset form
+      setTitle("");
+      setDescription("");
+      setStatus("todo");
+      setPriority("medium");
+      setAssigneeId(null);
+    } catch (err) {
+      console.error("Failed to create task:", err);
+      setCreateError(
+        err instanceof Error ? err.message : "Failed to create task"
+      );
+    } finally {
+      setCreating(false);
     }
   }
 
-  if (loading) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-gray-500">Loading workspace...</p>
-      </div>
-    );
+  function startEdit(task: Task) {
+    setEditingTaskId(task.id);
+    setEditTitle(task.title);
+    setEditDescription(task.description ?? "");
+    setEditStatus(task.status);
+    setEditPriority(task.priority);
+    setEditAssigneeId(task.assigneeId ?? null);
+    setEditError(null);
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-1 items-center justify-center">
-        <p className="text-red-500">Error: {error}</p>
-      </div>
-    );
+  function cancelEdit() {
+    setEditingTaskId(null);
+    setEditError(null);
+  }
+
+  async function saveEdit(event: React.FormEvent) {
+    event.preventDefault();
+    if (!editingTaskId) return;
+
+    setSaving(true);
+    setEditError(null);
+
+    try {
+      const response = await fetch(
+        `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks/${encodeURIComponent(editingTaskId)}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            title: editTitle,
+            description: editDescription,
+            status: editStatus,
+            priority: editPriority,
+            assigneeId: editAssigneeId,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const body = await response.json().catch(() => ({}));
+        throw new Error(body.error ?? `HTTP ${response.status}`);
+      }
+
+      const updated = (await response.json()) as Task;
+      setTasks((prev) =>
+        prev.map((t) => (t.id === updated.id ? updated : t))
+      );
+      cancelEdit();
+    } catch (err) {
+      console.error("Failed to update task:", err);
+      setEditError(
+        err instanceof Error ? err.message : "Failed to update task"
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
-    <div className="flex flex-1 flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-gray-50">
-          {workspace?.name ?? "Workspace"}
-        </h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          Manage your workspace members and settings.
-        </p>
-      </div>
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <h1 className="mb-6 text-2xl font-bold">Workspace Tasks</h1>
 
-      <section className="rounded-lg border border-gray-200 bg-white p-6 shadow-sm dark:border-gray-800 dark:bg-gray-900">
-        <h2 className="text-lg font-semibold text-gray-900 dark:text-gray-50">
-          Members
-        </h2>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          {members.length} member{members.length !== 1 ? "s" : ""} in this
-          workspace.
-        </p>
+      {/* Task Creation Form */}
+      <section className="mb-8 rounded border p-4">
+        <h2 className="mb-4 text-xl font-semibold">Create Task</h2>
+        <form onSubmit={handleCreateTask} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-sm font-medium">Title</label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              required
+              className="w-full border rounded p-2"
+            />
+          </div>
 
-        <ul className="mt-4 divide-y divide-gray-200 dark:divide-gray-800">
-          {members.map((member) => (
-            <li
-              key={member.id}
-              className="flex items-center gap-4 py-4"
-            >
-              <div
-                className="flex w-8 h-8 items-center justify-center rounded-full bg-gray-300 text-sm font-bold text-gray-700 dark:bg-gray-700 dark:text-gray-200"
-                aria-hidden="true"
+          <div>
+            <label className="mb-1 block text-sm font-medium">Description</label>
+            <textarea
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              rows={3}
+              className="w-full border rounded p-2"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium">Status</label>
+              <select
+                value={status}
+                onChange={(e) => setStatus(e.target.value as TaskStatus)}
+                className="w-full border rounded p-2"
               >
-                {getInitials(member.name)}
-              </div>
+                {TASK_STATUSES.map((s) => (
+                  <option key={s.value} value={s.value}>
+                    {s.label}
+                  </option>
+                ))}
+              </select>
+            </div>
 
-              <div className="flex flex-1 flex-col">
-                <span className="text-sm font-medium text-gray-900 dark:text-gray-50">
-                  {member.name}
-                </span>
-                <span className="text-sm text-gray-500 dark:text-gray-400">
-                  {member.email}
-                </span>
-              </div>
-
-              <span
-                className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${getRoleBadgeClasses(
-                  member.role
-                )}`}
+            <div>
+              <label className="mb-1 block text-sm font-medium">Priority</label>
+              <select
+                value={priority}
+                onChange={(e) => setPriority(e.target.value as TaskPriority)}
+                className="w-full border rounded p-2"
               >
-                {member.role}
-              </span>
+                {TASK_PRIORITIES.map((p) => (
+                  <option key={p.value} value={p.value}>
+                    {p.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-sm font-medium">Assignee</label>
+            <AssigneeSelect
+              workspaceId={workspaceId}
+              value={assigneeId}
+              onChange={setAssigneeId}
+            />
+          </div>
+
+          {createError && (
+            <p className="text-sm text-red-600">{createError}</p>
+          )}
+
+          <button
+            type="submit"
+            disabled={creating}
+            className="rounded bg-blue-600 px-4 py-2 text-white disabled:opacity-50"
+          >
+            {creating ? "Creating..." : "Create Task"}
+          </button>
+        </form>
+      </section>
+
+      {/* Task List */}
+      <section>
+        <h2 className="mb-4 text-xl font-semibold">Tasks</h2>
+
+        {loadingTasks && <p>Loading tasks...</p>}
+        {errorTasks && <p className="text-red-600">{errorTasks}</p>}
+
+        {!loadingTasks && !errorTasks && tasks.length === 0 && (
+          <p>No tasks yet.</p>
+        )}
+
+        <ul className="space-y-4">
+          {tasks.map((task) => (
+            <li key={task.id} className="rounded border p-4">
+              {editingTaskId === task.id ? (
+                /* Edit Form */
+                <form onSubmit={saveEdit} className="space-y-4">
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Title
+                    </label>
+                    <input
+                      type="text"
+                      value={editTitle}
+                      onChange={(e) => setEditTitle(e.target.value)}
+                      required
+                      className="w-full border rounded p-2"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Description
+                    </label>
+                    <textarea
+                      value={editDescription}
+                      onChange={(e) => setEditDescription(e.target.value)}
+                      rows={3}
+                      className="w-full border rounded p-2"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="mb-1 block text-sm font-medium">
+                        Status
+                      </label>
+                      <select
+                        value={editStatus}
+                        onChange={(e) =>
+                          setEditStatus(e.target.value as TaskStatus)
+                        }
+                        className="w-full border rounded p-2"
+                      >
+                        {TASK_STATUSES.map((s) => (
+                          <option key={s.value} value={s.value}>
+                            {s.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-sm font-medium">
+                        Priority
+                      </label>
+                      <select
+                        value={editPriority}
+                        onChange={(e) =>
+                          setEditPriority(e.target.value as TaskPriority)
+                        }
+                        className="w-full border rounded p-2"
+                      >
+                        {TASK_PRIORITIES.map((p) => (
+                          <option key={p.value} value={p.value}>
+                            {p.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="mb-1 block text-sm font-medium">
+                      Assignee
+                    </label>
+                    <AssigneeSelect
+                      workspaceId={workspaceId}
+                      value={editAssigneeId}
+                      onChange={setEditAssigneeId}
+                    />
+                  </div>
+
+                  {editError && (
+                    <p className="text-sm text-red-600">{editError}</p>
+                  )}
+
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={saving}
+                      className="rounded bg-green-600 px-4 py-2 text-white disabled:opacity-50"
+                    >
+                      {saving ? "Saving..." : "Save"}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={cancelEdit}
+                      className="rounded border px-4 py-2"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                </form>
+              ) : (
+                /* Task Display */
+                <div>
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <h3 className="text-lg font-medium">{task.title}</h3>
+                      <p className="text-sm text-gray-600">
+                        {task.description}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => startEdit(task)}
+                      className="rounded border px-3 py-1 text-sm"
+                    >
+                      Edit
+                    </button>
+                  </div>
+                  <div className="mt-2 flex gap-4 text-sm">
+                    <span>
+                      Status: {TASK_STATUSES.find((s) => s.value === task.status)?.label}
+                    </span>
+                    <span>
+                      Priority: {TASK_PRIORITIES.find((p) => p.value === task.priority)?.label}
+                    </span>
+                    <span>
+                      Assignee: {task.assigneeId ?? "Unassigned"}
+                    </span>
+                  </div>
+                </div>
+              )}
             </li>
           ))}
-
-          {members.length === 0 && (
-            <li className="py-6 text-center text-sm text-gray-500 dark:text-gray-400">
-              No members found.
-            </li>
-          )}
         </ul>
       </section>
     </div>
