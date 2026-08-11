@@ -108,6 +108,7 @@ export const CREATE_TASKS_TABLE = `
     description TEXT,
     dueDate TEXT,
     status TEXT NOT NULL DEFAULT 'todo',
+    priority TEXT NOT NULL DEFAULT 'medium',
     assigneeId TEXT,
     createdAt TEXT DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (workspaceId) REFERENCES workspaces(id) ON DELETE CASCADE,
