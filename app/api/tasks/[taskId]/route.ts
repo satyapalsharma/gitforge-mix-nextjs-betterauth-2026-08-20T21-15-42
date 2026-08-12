@@ -57,7 +57,7 @@ export async function PUT(
     await verifyWorkspaceMembership(session.user.id, existingTask.workspaceId);
 
     const body = await request.json();
-    const { title, description, dueDate, assigneeId, status } = body as UpdateTaskInput;
+    const { title, description, dueDate, assigneeId, status, priority } = body as UpdateTaskInput;
 
     if (!title || !status) {
       return NextResponse.json(
@@ -73,9 +73,9 @@ export async function PUT(
 
     const updatedTask = db
       .prepare(
-        `UPDATE tasks SET title = ?, description = ?, dueDate = ?, assigneeId = ?, status = ?, updatedAt = ? WHERE id = ?`
+        `UPDATE tasks SET title = ?, description = ?, dueDate = ?, assigneeId = ?, status = ?, priority = ?, updatedAt = ? WHERE id = ?`
       )
-      .run(title, description || null, dueDate || null, assigneeId || null, status, new Date().toISOString(), taskId);
+      .run(title, description || null, dueDate || null, assigneeId || null, status, priority ?? null, new Date().toISOString(), taskId);
 
     const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
 
