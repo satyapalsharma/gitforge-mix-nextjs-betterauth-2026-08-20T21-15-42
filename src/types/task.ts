@@ -17,6 +17,8 @@ export interface Task {
 export interface CreateTaskInput {
   title: string;
   description?: string;
+  status?: TaskStatus;
+  priority?: TaskPriority;
   dueDate?: string;
   assigneeId?: string;
 }
