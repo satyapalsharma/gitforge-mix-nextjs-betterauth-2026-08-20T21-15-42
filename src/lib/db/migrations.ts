@@ -23,9 +23,20 @@ export function migrate(db: Database.Database): void {
     db.exec(CREATE_PROJECTS_TABLE);
     db.exec(CREATE_WORKSPACE_MEMBERS_TABLE);
 
-    // Drop and recreate tasks table to ensure schema matches
-    db.exec("DROP TABLE IF EXISTS tasks");
+    // Ensure tasks table exists with the latest schema
     db.exec(CREATE_TASKS_TABLE);
+
+    // Add priority column if it doesn't already exist (for existing databases)
+    const tableInfo = db
+      .prepare("PRAGMA table_info(tasks)")
+      .all() as { name: string }[];
+    const hasPriority = tableInfo.some((col) => col.name === "priority");
+    if (!hasPriority) {
+      db.exec(
+        "ALTER TABLE tasks ADD COLUMN priority TEXT DEFAULT 'medium'"
+      );
+      logger.info("Added priority column to tasks table");
+    }
 
     logger.info("Database migrations completed");
   } catch (error) {
