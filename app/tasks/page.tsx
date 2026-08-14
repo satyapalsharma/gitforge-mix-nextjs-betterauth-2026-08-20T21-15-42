@@ -123,4 +123,53 @@ export default function TasksPage() {
   );
 
   return (
-    <div className=\"mx-auto max-w-4xl px-4 py-8\">\n      <h1 className=\"mb-6 text-2xl font-bold\">Tasks</h1>\n\n      <TaskFilters {...filtersProps} />\n\n      <section className=\"mt-6\">\n        {loadingTasks && <p>Loading tasks...</p>}\n        {errorTasks && <p className=\"text-red-600\">{errorTasks}</p>}\n\n        {!loadingTasks && !errorTasks && tasks.length === 0 && (\n          <p>No tasks found.</p>\n        )}\n\n        <ul className=\"mt-4 space-y-4\">\n          {tasks.map((task) => (\n            <li key={task.id} className=\"rounded border p-4\">\n              <div className=\"flex items-start justify-between\">\n                <div>\n                  <h3 className=\"text-lg font-medium\">{task.title}</h3>\n                  {task.description && (\n                    <p className=\"text-sm text-gray-600\">{task.description}</p>\n                  )}\n                </div>\n              </div>\n              <div className=\"mt-2 flex flex-wrap gap-4 text-sm\">\n                <span>\n                  Status: {TASK_STATUS_LABELS[task.status] ?? task.status}\n                </span>\n                {task.priority && (\n                  <span>\n                    Priority: {TASK_PRIORITY_LABELS[task.priority] ?? task.priority}\n                  </span>\n                )}\n                <span>\n                  Assignee: {task.assigneeId ?? \"Unassigned\"}\n                </span>\n                {task.dueDate && (\n                  <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>\n                )}\n                <span>\n                  Created: {new Date(task.createdAt).toLocaleDateString()}\n                </span>\n              </div>\n            </li>\n          ))}\n        </ul>\n      </section>\n    </div>\n  );\n}\n"
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <h1 className="mb-6 text-2xl font-bold">Tasks</h1>
+
+      <TaskFilters {...filtersProps} />
+
+      <section className="mt-6">
+        {loadingTasks && <p>Loading tasks...</p>}
+        {errorTasks && <p className="text-red-600">{errorTasks}</p>}
+
+        {!loadingTasks && !errorTasks && tasks.length === 0 && (
+          <p>No tasks found.</p>
+        )}
+
+        <ul className="mt-4 space-y-4">
+          {tasks.map((task) => (
+            <li key={task.id} className="rounded border p-4">
+              <div className="flex items-start justify-between">
+                <div>
+                  <h3 className="text-lg font-medium">{task.title}</h3>
+                  {task.description && (
+                    <p className="text-sm text-gray-600">{task.description}</p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 flex flex-wrap gap-4 text-sm">
+                <span>
+                  Status: {TASK_STATUS_LABELS[task.status] ?? task.status}
+                </span>
+                {task.priority && (
+                  <span>
+                    Priority: {TASK_PRIORITY_LABELS[task.priority] ?? task.priority}
+                  </span>
+                )}
+                <span>
+                  Assignee: {task.assigneeId ?? "Unassigned"}
+                </span>
+                {task.dueDate && (
+                  <span>Due: {new Date(task.dueDate).toLocaleDateString()}</span>
+                )}
+                <span>
+                  Created: {new Date(task.createdAt).toLocaleDateString()}
+                </span>
+              </div>
+            </li>
+          ))}
+        </ul>
+      </section>
+    </div>
+  );
+}
