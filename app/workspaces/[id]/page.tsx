@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { Task, TaskStatus, TaskPriority } from "@/src/types/task";
 import { TaskForm } from "@/components/TaskForm";
 import { TaskCard } from "@/components/TaskCard";
+import { TaskFilters } from "@/components/TaskFilters";
+import { useSearchParams } from "next/navigation";
 
 interface WorkspacePageProps {
   params: { id: string };
@@ -11,6 +13,8 @@ interface WorkspacePageProps {
 
 export default function WorkspacePage({ params }: WorkspacePageProps) {
   const workspaceId = params.id;
+  const searchParams = useSearchParams();
+  const priority = searchParams.get("priority") as TaskPriority | null;
 
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loadingTasks, setLoadingTasks] = useState(true);
@@ -26,9 +30,16 @@ export default function WorkspacePage({ params }: WorkspacePageProps) {
       try {
         setLoadingTasks(true);
         setErrorTasks(null);
-        const response = await fetch(
-          `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks`
+
+        const url = new URL(
+          `/api/workspaces/${encodeURIComponent(workspaceId)}/tasks`,
+          window.location.origin
         );
+        if (priority) {
+          url.searchParams.set("priority", priority);
+        }
+
+        const response = await fetch(url.toString());
 
         if (!response.ok) {
           throw new Error(`HTTP ${response.status}`);
@@ -45,7 +56,7 @@ export default function WorkspacePage({ params }: WorkspacePageProps) {
     }
 
     loadTasks();
-  }, [workspaceId]);
+  }, [workspaceId, priority]);
 
   async function handleCreateTask(data: {
     title: string;
@@ -145,7 +156,10 @@ export default function WorkspacePage({ params }: WorkspacePageProps) {
 
       {/* Task List */}
       <section>
-        <h2 className="mb-4 text-xl font-semibold">Tasks</h2>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-xl font-semibold">Tasks</h2>
+          <TaskFilters />
+        </div>
 
         {loadingTasks && <p>Loading tasks...</p>}
         {errorTasks && <p className="text-red-600">{errorTasks}</p>}
