@@ -1,0 +1,21 @@
+# Code Owners
+# https://docs.github.com/en/repositories/creating-and-managing-repositories/about-code-owners
+
+# Default owners for everything
+* @project-author
+
+# Source code
+/src/ @project-author
+/src/lib/ @project-author
+/src/types/ @project-author
+/src/components/ @project-author
+
+# App router
+/app/ @project-author
+/app/api/ @project-author
+
+# Configuration files
+/package.json @project-author
+/tsconfig.json @project-author
+/tailwind.config.ts @project-author
+/next.config.ts @project-author
