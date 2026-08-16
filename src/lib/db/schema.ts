@@ -87,19 +87,6 @@ export const CREATE_PROJECTS_TABLE = `
   )
 `;
 
-export const CREATE_WORKSPACE_MEMBERS_TABLE = `
-  CREATE TABLE IF NOT EXISTS workspace_members (
-    id TEXT PRIMARY KEY,
-    workspaceId TEXT NOT NULL,
-    userId TEXT NOT NULL,
-    role TEXT NOT NULL DEFAULT 'member',
-    joinedAt TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (workspaceId) REFERENCES workspaces(id) ON DELETE CASCADE,
-    FOREIGN KEY (userId) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(workspaceId, userId)
-  )
-`;
-
 export const CREATE_TASKS_TABLE = `
   CREATE TABLE IF NOT EXISTS tasks (
     id TEXT PRIMARY KEY,
