@@ -3,24 +3,37 @@ import { getDb } from "@/src/lib/db/index";
 import { Task, CreateTaskInput } from "@/src/types/task";
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: { id: string } }
 ) {
   try {
     const db = getDb();
     const workspaceId = params.id;
 
-    const stmt = db.prepare(
-      `SELECT id, title, description, status, priority, project_id as projectId,
-              assignee_id as assigneeId, reporter_id as reporterId,
-              due_date as dueDate, tags, created_at as createdAt,
-              updated_at as updatedAt
-       FROM tasks
-       WHERE project_id IN (
-         SELECT id FROM projects WHERE workspace_id = ?
-       )`
-    );
-    const tasks = stmt.all(workspaceId) as Task[];
+    const url = new URL(request.url);
+    const priority = url.searchParams.get("priority");
+
+    const conditions: string[] = [
+      `project_id IN (SELECT id FROM projects WHERE workspace_id = ?)`,
+    ];
+    const values: unknown[] = [workspaceId];
+
+    if (priority) {
+      conditions.push(`priority = ?`);
+      values.push(priority);
+    }
+
+    const sql = `
+      SELECT id, title, description, status, priority, project_id as projectId,
+             assignee_id as assigneeId, reporter_id as reporterId,
+             due_date as dueDate, tags, created_at as createdAt,
+             updated_at as updatedAt
+      FROM tasks
+      WHERE ${conditions.join(" AND ")}
+    `;
+
+    const stmt = db.prepare(sql);
+    const tasks = stmt.all(...values) as Task[];
 
     return NextResponse.json(tasks);
   } catch (error) {
