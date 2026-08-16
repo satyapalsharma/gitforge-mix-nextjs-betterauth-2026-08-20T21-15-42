@@ -22,6 +22,7 @@
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 
 # debug
@@ -84,3 +85,7 @@ vendor/
 .gitforge_*.msg
 .gitforge_*.tmp
 .git-askpass
+
+# Additional common patterns
+.history/
+.swc/
