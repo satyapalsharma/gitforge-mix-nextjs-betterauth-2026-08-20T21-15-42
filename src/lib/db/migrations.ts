@@ -9,6 +9,7 @@ import {
   CREATE_PROJECTS_TABLE,
   CREATE_WORKSPACE_MEMBERS_TABLE,
   CREATE_TASKS_TABLE,
+  CREATE_COMMENTS_TABLE,
 } from "./schema";
 import { logger } from "../logger";
 
@@ -26,6 +27,8 @@ export function migrate(db: Database.Database): void {
     // Drop and recreate tasks table to ensure schema matches
     db.exec("DROP TABLE IF EXISTS tasks");
     db.exec(CREATE_TASKS_TABLE);
+
+    db.exec(CREATE_COMMENTS_TABLE);
 
     logger.info("Database migrations completed");
   } catch (error) {

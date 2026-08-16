@@ -114,3 +114,16 @@ export const CREATE_TASKS_TABLE = `
     FOREIGN KEY (assigneeId) REFERENCES users(id)
   )
 `;
+
+export const CREATE_COMMENTS_TABLE = `
+  CREATE TABLE IF NOT EXISTS comments (
+    id TEXT PRIMARY KEY,
+    task_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    content TEXT NOT NULL,
+    parent_id TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES comments(id) ON DELETE CASCADE
+  )
+`;
