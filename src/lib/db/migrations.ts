@@ -20,7 +20,6 @@ export function migrate(db: Database.Database): void {
     db.exec(CREATE_TEAMS_TABLE);
     db.exec(CREATE_TEAM_MEMBERS_TABLE);
     db.exec(CREATE_PROJECTS_TABLE);
-    db.exec(CREATE_WORKSPACE_MEMBERS_TABLE);
 
     // Ensure tasks table exists with the latest schema
     db.exec(CREATE_TASKS_TABLE);
