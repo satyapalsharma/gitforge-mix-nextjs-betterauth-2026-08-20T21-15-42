@@ -1,5 +1,5 @@
 import { getDb } from "@/lib/db";
-import { ForbiddenError } from "@/lib/errors";
+import { ForbiddenError } from "@/src/lib/errors";
 
 export async function verifyWorkspaceMembership(
   userId: string,
