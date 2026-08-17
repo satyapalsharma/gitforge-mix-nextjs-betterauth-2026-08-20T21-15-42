@@ -21,7 +21,9 @@ export interface CreateTaskInput {
   priority?: TaskPriority;
   dueDate?: string;
   assigneeId?: string;
-}
+  projectId?: string;
+  reporterId?: string;
+  tags?: string[];}
 
 export interface UpdateTaskInput {
   title?: string;
