@@ -32,4 +32,5 @@ export interface UpdateTaskInput {
   priority?: TaskPriority;
   assigneeId?: string;
   dueDate?: string;
+  tags?: string[];
 }
