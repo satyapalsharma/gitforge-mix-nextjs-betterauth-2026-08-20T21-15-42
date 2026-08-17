@@ -7,7 +7,6 @@ import {
   CREATE_TEAMS_TABLE,
   CREATE_TEAM_MEMBERS_TABLE,
   CREATE_PROJECTS_TABLE,
-  CREATE_WORKSPACE_MEMBERS_TABLE,
   CREATE_TASKS_TABLE,
 } from "./schema";
 import { logger } from "../logger";
