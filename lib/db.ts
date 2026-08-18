@@ -1,6 +1,6 @@
 import Database from "better-sqlite3";
 import fs from "fs";
-import { migrate } from "./src/lib/db/migrations";
+import { migrate } from "@/src/lib/db/migrations";
 
 // Ensure data directory exists
 fs.mkdirSync("data", { recursive: true });
