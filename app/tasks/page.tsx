@@ -1,8 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useSearchParams } from "next/navigation";
-import TaskFilters, { type User, type TaskFiltersProps } from "@/components/TaskFilters";
+import { TaskFilters } from "@/components/TaskFilters";
 import type { Task } from "@/src/types/task";
 
 const TASK_STATUS_LABELS: Record<string, string> = {
