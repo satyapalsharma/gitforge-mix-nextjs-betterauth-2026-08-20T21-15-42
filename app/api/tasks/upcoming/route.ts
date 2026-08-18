@@ -1,5 +1,5 @@
-import { auth } from "lib/auth.ts";
-import { getUpcomingTasks } from "lib/tasks.ts";
+import { auth } from "@/lib/auth";
+import { getUpcomingTasks } from "@/lib/tasks";
 import { headers } from "next/headers";
 
 export const dynamic = "force-dynamic";
