@@ -1,11 +1,11 @@
 "use client";
 
-import { useSession } from "better-auth/react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect, useRef } from "react";
+import { authClient } from "@/lib/auth-client";
 
 export default function ProfilePage() {
-  const { data: session, isPending } = useSession();
+  const { data: session, isPending } = authClient.useSession();
   const router = useRouter();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
