@@ -20,7 +20,7 @@ const TASK_PRIORITY_LABELS: Record<string, string> = {
   urgent: "Urgent",
 };
 
-export default function TasksPage() {
+function TasksPageContent() {
   const searchParams = useSearchParams();
 
   const [tasks, setTasks] = useState<Task[]>([]);
