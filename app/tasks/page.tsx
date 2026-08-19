@@ -67,31 +67,14 @@ export default function TasksPage() {
   }, [status, assigneeId, dueFrom, dueTo, sortBy, sortOrder]);
 
   useEffect(() => {
-    loadUsers();
-  }, []);
-
-  useEffect(() => {
     loadTasks();
   }, [loadTasks]);
-
-  const filtersProps: TaskFiltersProps = useMemo(
-    () => ({
-      users,
-      initialStatus: status,
-      initialAssigneeId: assigneeId,
-      initialDueFrom: dueFrom,
-      initialDueTo: dueTo,
-      initialSortBy: sortBy,
-      initialSortOrder: sortOrder,
-    }),
-    [users, status, assigneeId, dueFrom, dueTo, sortBy, sortOrder]
-  );
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
       <h1 className="mb-6 text-2xl font-bold">Tasks</h1>
 
-      <TaskFilters {...filtersProps} />
+      <TaskFilters />
 
       <section className="mt-6">
         {loadingTasks && <p>Loading tasks...</p>}
