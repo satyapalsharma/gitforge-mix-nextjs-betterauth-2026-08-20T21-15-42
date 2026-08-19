@@ -121,3 +121,11 @@ function TasksPageContent() {
     </div>
   );
 }
+
+export default function TasksPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <TasksPageContent />
+    </Suspense>
+  );
+}
