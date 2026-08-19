@@ -27,9 +27,6 @@ export default function TasksPage() {
   const [loadingTasks, setLoadingTasks] = useState(true);
   const [errorTasks, setErrorTasks] = useState<string | null>(null);
 
-  const [users, setUsers] = useState<User[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(true);
-
   // Read filters from URL
   const status = searchParams.get("status") ?? "";
   const assigneeId = searchParams.get("assigneeId") ?? "";
@@ -37,38 +34,6 @@ export default function TasksPage() {
   const dueTo = searchParams.get("dueTo") ?? "";
   const sortBy = searchParams.get("sortBy") ?? "";
   const sortOrder = searchParams.get("sortOrder") ?? "desc";
-
-  async function loadUsers() {
-    try {
-      setLoadingUsers(true);
-      // Fetch user's workspaces
-      const workspacesRes = await fetch("/api/workspaces");
-      if (!workspacesRes.ok) {
-        throw new Error(`Failed to fetch workspaces: ${workspacesRes.status}`);
-      }
-      const workspaces = (await workspacesRes.json()) as Array<{ id: string }>;
-
-      // Fetch members from each workspace and deduplicate by user id
-      const memberPromises = workspaces.map((ws) =>
-        fetch(`/api/workspaces/${encodeURIComponent(ws.id)}/members`).then((r) =>
-          r.ok ? r.json() : []
-        )
-      );
-
-      const memberArrays = await Promise.all(memberPromises);
-      const userMap = new Map<string, User>();
-      for (const members of memberArrays) {
-        for (const m of members) {
-          userMap.set(m.id, { id: m.id, name: m.name });
-        }
-      }
-      setUsers(Array.from(userMap.values()));
-    } catch (err) {
-      console.error("Failed to load users:", err);
-    } finally {
-      setLoadingUsers(false);
-    }
-  }
 
   const loadTasks = useCallback(async () => {
     try {
