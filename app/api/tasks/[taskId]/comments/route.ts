@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getDb } from "@/lib/db";
-import { auth } from "@/lib/auth/config";
-import { verifyWorkspaceMembership } from "@/lib/auth/workspace";
+import { auth } from "@/lib/auth-module/config";
+import { verifyWorkspaceMembership } from "@/lib/auth-module/workspace";
 import { headers } from "next/headers";
 import type { Comment, CreateCommentInput } from "@/types/comment";
 
