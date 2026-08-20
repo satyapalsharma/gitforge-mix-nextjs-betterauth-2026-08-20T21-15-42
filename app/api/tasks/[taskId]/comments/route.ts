@@ -5,6 +5,8 @@ import { verifyWorkspaceMembership } from "@/lib/auth/workspace";
 import { headers } from "next/headers";
 import type { Comment, CreateCommentInput } from "@/types/comment";
 
+export const dynamic = "force-dynamic";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ taskId: string }> }

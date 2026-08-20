@@ -3,6 +3,8 @@ import { getDb } from "@/src/lib/db/index";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 
+export const dynamic = "force-dynamic";
+
 interface Member {
   id: string;
   name: string;

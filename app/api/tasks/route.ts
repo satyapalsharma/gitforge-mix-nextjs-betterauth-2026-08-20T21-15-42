@@ -4,6 +4,8 @@ import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import type { Task } from "@/types/task";
 
+export const dynamic = "force-dynamic";
+
 const ALLOWED_SORT_BY = new Set(["dueDate", "createdAt", "priority"]);
 const ALLOWED_SORT_ORDER = new Set(["asc", "desc"]);
 
